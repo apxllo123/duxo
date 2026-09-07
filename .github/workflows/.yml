@@ -109,6 +109,17 @@ jobs:
       - name: Stage renderer assets
         working-directory: desktop
         run: node scripts/build.mjs
+      - name: Typecheck native macOS source
+        working-directory: desktop
+        run: |
+          set -euo pipefail
+          swiftc \
+            -typecheck \
+            -target arm64-apple-macosx15.0 \
+            -framework AppKit \
+            -framework WebKit \
+            -warnings-as-errors \
+            macos/DuxoNative.swift
       - name: Build native macOS app
         working-directory: desktop
         env:
@@ -145,7 +156,7 @@ jobs:
           test -f "$MARKER"
           grep -Fq "Host: AppKit + WKWebView" "$MARKER"
           grep -Fq "Electron runtime: not used" "$MARKER"
-          grep -Fq "Validation profile: native-macos-v5" "$MARKER"
+          grep -Fq "Validation profile: native-macos-v6" "$MARKER"
           grep -Fq "Git SHA: $GITHUB_SHA" "$MARKER"
           grep -Fq "Distribution: ZIP + DMG" "$MARKER"
           ICON="$APP/Contents/Resources/Duxo.icns"
