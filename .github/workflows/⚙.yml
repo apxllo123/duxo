@@ -42,6 +42,10 @@ jobs:
           - os: ubuntu-latest
             expected_arch: x64
 
+    env:
+      RUST_BACKTRACE: '1'
+      CARGO_TERM_COLOR: always
+
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -52,6 +56,9 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
 
       - name: Capture runner environment
         shell: bash
@@ -91,7 +98,8 @@ jobs:
           cargo metadata --locked --no-deps --format-version 1 > .ci-report/cargo-metadata.json
           python3 - <<'PY'
           import json
-          data = json.load(open('.ci-report/cargo-metadata.json'))
+          with open('.ci-report/cargo-metadata.json', encoding='utf-8') as f:
+              data = json.load(f)
           names = sorted(pkg['name'] for pkg in data['packages'])
           required = {'duxo-analyzer', 'duxo-adapter'}
           missing = required - set(names)
