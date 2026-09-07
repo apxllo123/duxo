@@ -1,8 +1,8 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
-export interface AkronApi {
+export interface DuxoApi {
   getAppInfo(): Promise<{
-    name: 'Akron';
+    name: 'Duxo';
     version: string;
     platform: 'darwin' | 'win32';
     arch: string;
@@ -21,7 +21,7 @@ export interface AkronApi {
   buildAdaptationPlan(profile: unknown): Promise<unknown>;
 }
 
-const api: AkronApi = {
+const api: DuxoApi = {
   getAppInfo: () => ipcRenderer.invoke('app:info'),
   prepareStartup: () => ipcRenderer.invoke('startup:prepare'),
   onStartupProgress: (listener) => {
@@ -36,4 +36,4 @@ const api: AkronApi = {
   buildAdaptationPlan: (profile) => ipcRenderer.invoke('adapter:plan', profile),
 };
 
-contextBridge.exposeInMainWorld('akron', api);
+contextBridge.exposeInMainWorld('duxo', api);
