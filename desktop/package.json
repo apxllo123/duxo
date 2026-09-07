@@ -1,8 +1,8 @@
 {
-  "name": "akron-desktop",
-  "version": "2.7.0",
+  "name": "duxo-desktop",
+  "version": "2.5.0",
   "private": true,
-  "description": "Akron desktop application",
+  "description": "Duxo desktop application",
   "author": "apxllo",
   "main": "dist-electron/main.js",
   "scripts": {
@@ -14,6 +14,9 @@
     "prepare-icons": "node scripts/prepare-icons.mjs",
     "start": "npm run compile && npm run compile:renderer && npm run stage-runtime && node scripts/build.mjs && electron ."
   },
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "devDependencies": {
     "@types/node": "26.4.1",
     "electron": "44.2.0",
@@ -23,8 +26,8 @@
     "typescript": "7.0.2"
   },
   "build": {
-    "appId": "com.apxllo.akron",
-    "productName": "Akron",
+    "appId": "com.apxllo.duxo",
+    "productName": "Duxo",
     "asar": true,
     "files": [
       "dist-electron/**/*",
@@ -33,7 +36,7 @@
     "extraResources": [
       {
         "from": "resources",
-        "to": "akron-runtime",
+        "to": "duxo-runtime",
         "filter": [
           "**/*"
         ]
