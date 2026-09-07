@@ -1,4 +1,4 @@
-name: Electron CI
+name: Duxo Electron CI
 
 on:
   push:
