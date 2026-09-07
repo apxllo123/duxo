@@ -1,4 +1,4 @@
-name: Duxo Rust CI
+name: ⚙ CI
 
 on:
   push:
