@@ -310,7 +310,9 @@ fn is_platform_provided(library: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{BinaryDependency, GameProfile, GraphicsRequirements, profile_game, sort_dependencies};
+    use super::{
+        BinaryDependency, GameProfile, GraphicsRequirements, profile_game, sort_dependencies,
+    };
     use crate::manifest::{ExecutableRecord, FileRecord, GameManifest, ProtectionSignals};
     use std::path::PathBuf;
 
