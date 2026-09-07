@@ -1,0 +1,21 @@
+[package]
+name = "duxo-analyzer"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "duxo_analyzer"
+path = "src/lib.rs"
+
+[[bin]]
+name = "duxo-analyzer"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+goblin = "0.10.7"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+walkdir = "2"
