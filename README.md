@@ -245,24 +245,36 @@ npm start
 
 ## 📦 Releases
 
-Duxo releases are versioned using the public sequence:
+Duxo uses short public release tags while keeping full semantic versions in the application metadata.
+
+### Current release
+
+**[v4.6](https://github.com/apxllo123/duxo/releases/tag/v4.6)** — current release tag
+
+### Release history
+
+Each release is represented by a Git tag and a GitHub Release, so a version points directly to the exact source snapshot used for that release.
 
 ```text
-v0.1 → v0.2 → … → v0.9 → v1.0 → v1.1 → …
+v0.1 → v0.2 → … → v0.9 → v1.0 → v1.1 → … → v4.6
 ```
 
-Application versions remain valid semantic versions internally (`0.1.0`, `1.0.0`, etc.), while the public release tags use the shorter display form.
+The short tag is the public version shown in releases, while the application keeps a valid semantic version internally (`4.6.0`, for example).
 
-The release workflow is designed to:
+### Release pipeline
 
-1. Detect the next release number.
-2. Update the desktop package and macOS bundle versions together.
-3. Create the matching Git tag.
-4. Publish the GitHub Release.
-5. Build the tagged application.
-6. Attach the macOS ARM64 ZIP, DMG, and checksums to the release.
+The **✦ Release** workflow is the only workflow responsible for publishing a versioned application release. It:
 
-Release automation is restricted to **release-worthy product changes**. README/docs-only, workflow-only, and other non-product edits do not create a new version automatically.
+1. Detects substantive product changes since the latest release.
+2. Calculates the next public release tag.
+3. Updates the desktop package and macOS bundle versions together.
+4. Creates or reuses the matching Git tag.
+5. Runs the tagged ** Build** workflow.
+6. Verifies the produced macOS artifacts.
+7. Creates or reuses the GitHub Release only after the Mac build succeeds.
+8. Attaches the ZIP, DMG, and SHA-256 files to that release.
+
+Documentation-only and workflow-only changes do not create a new product release.
 
 ## ⚙️ CI & Automation
 
@@ -282,9 +294,7 @@ Duxo separates verification from packaging while keeping both automated.
 
 ### ✦ Release
 
-`.github/workflows/✦.yml` handles substantive-change detection, release-number progression, tagged macOS builds, and publishing the release artifacts.
-
-The Release workflow includes a gate that compares the current `main` state with the latest release tag and only proceeds when product source, desktop/runtime, resource, test, or build configuration changes are present.
+`.github/workflows/✦.yml` is the single release orchestrator. It prepares the version and tag, waits for the tagged ` Build` workflow to pass, then publishes and attaches the resulting release artifacts.
 
 ## 📁 Repository Layout
 
