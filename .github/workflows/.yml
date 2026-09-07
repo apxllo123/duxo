@@ -5,8 +5,8 @@ on:
     branches: [main]
     tags: ['v*']
     paths:
-      - 'Akron Analyzer/**'
-      - 'Akron Adapter/**'
+      - 'Duxo Analyzer/**'
+      - 'Duxo Adapter/**'
       - 'desktop/**'
       - 'resources/**'
       - 'tests/**'
@@ -28,7 +28,7 @@ on:
         type: string
 
 concurrency:
-  group: build-akron-${{ inputs.ref || github.ref }}
+  group: build-duxo-${{ inputs.ref || github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -63,12 +63,12 @@ jobs:
           echo "Working tree status:"
           git status --short
           echo "== PE analyzer source at HEAD =="
-          git show HEAD:"Akron Analyzer/src/pe.rs" | grep -nE 'export\.ordinal|import\.ordinal' || true
-          if git show HEAD:"Akron Analyzer/src/pe.rs" | grep -q 'export\.ordinal'; then
+          git show HEAD:"Duxo Analyzer/src/pe.rs" | grep -nE 'export\.ordinal|import\.ordinal' || true
+          if git show HEAD:"Duxo Analyzer/src/pe.rs" | grep -q 'export\.ordinal'; then
             echo "FAIL: checked-out PE analyzer source contains unsupported export.ordinal" >&2
             exit 1
           fi
-          if ! git show HEAD:"Akron Analyzer/src/pe.rs" | grep -q 'import\.ordinal'; then
+          if ! git show HEAD:"Duxo Analyzer/src/pe.rs" | grep -q 'import\.ordinal'; then
             echo "FAIL: checked-out PE analyzer source is missing import.ordinal handling" >&2
             exit 1
           fi
@@ -93,13 +93,13 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
       - name: Build Analyzer
-        run: cargo build --release -p akron-analyzer
+        run: cargo build --release -p duxo-analyzer
       - name: Stage Analyzer runtime
         shell: bash
         run: |
           set -euo pipefail
           rm -rf desktop/resources/*
-          install -m 755 target/release/akron-analyzer desktop/resources/akron-analyzer
+          install -m 755 target/release/duxo-analyzer desktop/resources/duxo-analyzer
       - name: Install desktop dependencies
         working-directory: desktop
         run: npm install --no-audit --no-fund
@@ -118,37 +118,37 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          APP="desktop/dist-native/Akron.app"
-          ZIP="desktop/dist-native/Akron-Native-macos-arm64.zip"
-          ZIP_SHA="desktop/dist-native/Akron-Native-macos-arm64.zip.sha256"
-          DMG="desktop/dist-native/Akron-Native-macos-arm64.dmg"
-          DMG_SHA="desktop/dist-native/Akron-Native-macos-arm64.dmg.sha256"
+          APP="desktop/dist-native/Duxo.app"
+          ZIP="desktop/dist-native/Duxo-Native-macos-arm64.zip"
+          ZIP_SHA="desktop/dist-native/Duxo-Native-macos-arm64.zip.sha256"
+          DMG="desktop/dist-native/Duxo-Native-macos-arm64.dmg"
+          DMG_SHA="desktop/dist-native/Duxo-Native-macos-arm64.dmg.sha256"
           test -d "$APP"
           test -f "$ZIP"
           test -f "$ZIP_SHA"
           test -f "$DMG"
           test -f "$DMG_SHA"
           /usr/bin/plutil -lint "$APP/Contents/Info.plist"
-          MAIN="$APP/Contents/MacOS/Akron"
+          MAIN="$APP/Contents/MacOS/Duxo"
           test -x "$MAIN"
           /usr/bin/file "$MAIN"
-          ANALYZER="$APP/Contents/Resources/akron-runtime/akron-analyzer"
+          ANALYZER="$APP/Contents/Resources/duxo-runtime/duxo-analyzer"
           test -x "$ANALYZER"
           /usr/bin/file "$ANALYZER"
-          ADAPTER="$APP/Contents/Resources/akron-runtime/akron-adapter"
+          ADAPTER="$APP/Contents/Resources/duxo-runtime/duxo-adapter"
           test -x "$ADAPTER"
           /usr/bin/file "$ADAPTER"
           test -f "$APP/Contents/Resources/ui/index.html"
           test -f "$APP/Contents/Resources/ui/renderer.js"
           test -f "$APP/Contents/Resources/ui/styles.css"
-          MARKER="$APP/Contents/Resources/Akron-Build.txt"
+          MARKER="$APP/Contents/Resources/Duxo-Build.txt"
           test -f "$MARKER"
           grep -Fq "Host: AppKit + WKWebView" "$MARKER"
           grep -Fq "Electron runtime: not used" "$MARKER"
           grep -Fq "Validation profile: native-macos-v5" "$MARKER"
           grep -Fq "Git SHA: $GITHUB_SHA" "$MARKER"
           grep -Fq "Distribution: ZIP + DMG" "$MARKER"
-          ICON="$APP/Contents/Resources/Akron.icns"
+          ICON="$APP/Contents/Resources/Duxo.icns"
           test -s "$ICON"
           /usr/bin/plutil -extract CFBundleIconFile raw "$APP/Contents/Info.plist"
           if find "$APP/Contents" -type f \( -name 'Electron Framework' -o -name 'electron' -o -name 'app.asar' \) -print -quit | grep -q .; then
@@ -161,44 +161,44 @@ jobs:
           MOUNT_PATH="$(printf '%s\n' "$MOUNT_INFO" | awk -F'\t' '/\/Volumes\// {print $NF; exit}')"
           test -n "$MOUNT_PATH"
           trap '/usr/bin/hdiutil detach "$MOUNT_PATH" -quiet >/dev/null 2>&1 || true' EXIT
-          test -d "$MOUNT_PATH/Akron.app"
+          test -d "$MOUNT_PATH/Duxo.app"
           test -d "$MOUNT_PATH/Applications"
-          test -x "$MOUNT_PATH/Akron.app/Contents/MacOS/Akron"
-          test -f "$MOUNT_PATH/Akron.app/Contents/Resources/Akron.icns"
-          /usr/bin/codesign --verify --deep --strict "$MOUNT_PATH/Akron.app"
+          test -x "$MOUNT_PATH/Duxo.app/Contents/MacOS/Duxo"
+          test -f "$MOUNT_PATH/Duxo.app/Contents/Resources/Duxo.icns"
+          /usr/bin/codesign --verify --deep --strict "$MOUNT_PATH/Duxo.app"
           /usr/bin/hdiutil detach "$MOUNT_PATH" -quiet
           trap - EXIT
       - name: Test distributed native DMG through LaunchServices
         shell: bash
         run: |
           set -u
-          DMG="desktop/dist-native/Akron-Native-macos-arm64.dmg"
-          LOG="$RUNNER_TEMP/Akron-native-dmg-launch.log"
-          MOUNT_INFO="$(/usr/bin/hdiutil attach "$DMG" -nobrowse -noautoopen 2>"$RUNNER_TEMP/Akron-dmg-attach.err")"
+          DMG="desktop/dist-native/Duxo-Native-macos-arm64.dmg"
+          LOG="$RUNNER_TEMP/Duxo-native-dmg-launch.log"
+          MOUNT_INFO="$(/usr/bin/hdiutil attach "$DMG" -nobrowse -noautoopen 2>"$RUNNER_TEMP/Duxo-dmg-attach.err")"
           MOUNT_PATH="$(printf '%s\n' "$MOUNT_INFO" | awk -F'\t' '/\/Volumes\// {print $NF; exit}')"
           if [ -z "$MOUNT_PATH" ]; then
             exit 1
           fi
-          APP="$MOUNT_PATH/Akron.app"
+          APP="$MOUNT_PATH/Duxo.app"
           /usr/bin/open "$APP" >"$LOG" 2>&1 || true
           READY=0
           for _ in $(seq 1 15); do
-            if /usr/bin/pgrep -f -- "$APP/Contents/MacOS/Akron$" >/dev/null 2>&1; then READY=1; break; fi
+            if /usr/bin/pgrep -f -- "$APP/Contents/MacOS/Duxo$" >/dev/null 2>&1; then READY=1; break; fi
             sleep 1
           done
           if [ "$READY" -ne 1 ]; then
             /usr/bin/hdiutil detach "$MOUNT_PATH" -quiet >/dev/null 2>&1 || true
             exit 1
           fi
-          /usr/bin/pkill -f -- "$APP/Contents/MacOS/Akron$" 2>/dev/null || true
+          /usr/bin/pkill -f -- "$APP/Contents/MacOS/Duxo$" 2>/dev/null || true
           /usr/bin/hdiutil detach "$MOUNT_PATH" -quiet >/dev/null 2>&1 || true
       - name: Upload macOS native artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: akron-macos-arm64
+          name: duxo-macos-arm64
           path: |
-            desktop/dist-native/Akron-Native-macos-arm64.zip
-            desktop/dist-native/Akron-Native-macos-arm64.zip.sha256
-            desktop/dist-native/Akron-Native-macos-arm64.dmg
-            desktop/dist-native/Akron-Native-macos-arm64.dmg.sha256
+            desktop/dist-native/Duxo-Native-macos-arm64.zip
+            desktop/dist-native/Duxo-Native-macos-arm64.zip.sha256
+            desktop/dist-native/Duxo-Native-macos-arm64.dmg
+            desktop/dist-native/Duxo-Native-macos-arm64.dmg.sha256
           if-no-files-found: error
