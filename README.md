@@ -8,10 +8,9 @@
 
 <p>Duxo analyzes a game's files, executables, dependencies, runtime requirements, graphics stack, and protection signals before an adaptation plan is generated.</p>
 
-[![ Duxo Build](https://img.shields.io/github/actions/workflow/status/apxllo123/duxo/%EF%A3%BF.yml?label=%EF%A3%BF%20Duxo%20Build&style=for-the-badge&color=4c8bf5)](https://github.com/apxllo123/duxo/actions/workflows/%EF%A3%BF.yml)
-[![⌘ Duxo Electron](https://img.shields.io/github/actions/workflow/status/apxllo123/duxo/%E2%8C%98.yml?label=%E2%8C%98%20Duxo%20Electron&style=for-the-badge&color=8b5cf6)](https://github.com/apxllo123/duxo/actions/workflows/%E2%8C%98.yml)
-[![⚙ Duxo Rust](https://img.shields.io/github/actions/workflow/status/apxllo123/duxo/%E2%9A%99.yml?label=%E2%9A%99%20Duxo%20Rust&style=for-the-badge&color=64748b)](https://github.com/apxllo123/duxo/actions/workflows/%E2%9A%99.yml)
-[![▣ Duxo Release](https://img.shields.io/github/actions/workflow/status/apxllo123/duxo/%E2%96%A3.yml?label=%E2%96%A3%20Duxo%20Release&style=for-the-badge&color=f59e0b)](https://github.com/apxllo123/duxo/actions/workflows/%E2%96%A3.yml)
+[![⌘ Electron](https://img.shields.io/github/actions/workflow/status/apxllo123/duxo/%E2%8C%98.yml?label=%E2%8C%98%20Electron&style=for-the-badge&color=8b5cf6)](https://github.com/apxllo123/duxo/actions/workflows/%E2%8C%98.yml)
+[![⚙ Rust](https://img.shields.io/github/actions/workflow/status/apxllo123/duxo/%E2%9A%99.yml?label=%E2%9A%99%20Rust&style=for-the-badge&color=64748b)](https://github.com/apxllo123/duxo/actions/workflows/%E2%9A%99.yml)
+[![✦ Release](https://img.shields.io/github/actions/workflow/status/apxllo123/duxo/%E2%9C%A6.yml?label=%E2%9C%A6%20Release&style=for-the-badge&color=f59e0b)](https://github.com/apxllo123/duxo/actions/workflows/%E2%9C%A6.yml)
 [![Release](https://img.shields.io/github/v/release/apxllo123/duxo?display_name=tag&style=for-the-badge&color=7c5cff)](https://github.com/apxllo123/duxo/releases)
 [![License](https://img.shields.io/github/license/apxllo123/duxo?style=for-the-badge&color=2ea043)](LICENSE)
 
@@ -263,29 +262,29 @@ The release workflow is designed to:
 5. Build the tagged application.
 6. Attach the macOS ARM64 ZIP, DMG, and checksums to the release.
 
-Documentation-only changes are intentionally excluded from expensive application build/release automation.
+Release automation is restricted to **release-worthy product changes**. README/docs-only, workflow-only, and other non-product edits do not create a new version automatically.
 
 ## ⚙️ CI & Automation
 
 Duxo separates verification from packaging while keeping both automated.
 
-###  Duxo Build
+###  Build
 
 `.github/workflows/.yml` handles the macOS application build and packaging pipeline.
 
-### ⌘ Duxo Electron
+### ⌘ Electron
 
 `.github/workflows/⌘.yml` handles Electron and renderer verification across the supported desktop targets.
 
-### ⚙ Duxo Rust
+### ⚙ Rust
 
 `.github/workflows/⚙.yml` handles Rust formatting, compilation, Clippy, tests, and release builds.
 
-### ▣ Duxo Release
+### ✦ Release
 
-`.github/workflows/▣.yml` handles release-number progression and coordinates tagged builds and release assets.
+`.github/workflows/✦.yml` handles substantive-change detection, release-number progression, tagged macOS builds, and publishing the release artifacts.
 
-The workflows are path-aware so README/docs-only edits do not repeatedly consume build time.
+The Release workflow includes a gate that compares the current `main` state with the latest release tag and only proceeds when product source, desktop/runtime, resource, test, or build configuration changes are present.
 
 ## 📁 Repository Layout
 
