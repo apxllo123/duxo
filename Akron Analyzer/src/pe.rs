@@ -106,7 +106,7 @@ mod tests {
 
     #[test]
     fn rejects_non_pe_input() {
-        let path = std::env::temp_dir().join("akron-not-a-pe.bin");
+        let path = std::env::temp_dir().join("duxo-not-a-pe.bin");
         std::fs::write(&path, b"not a portable executable").expect("write fixture");
         let result = analyze_pe(Path::new(&path));
         assert!(result.is_err());
