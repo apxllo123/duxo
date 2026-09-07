@@ -1,11 +1,11 @@
-name: Release Akron
+name: Duxo Release
 
 on:
   push:
     branches: [main]
     paths:
-      - 'Akron Analyzer/**'
-      - 'Akron Adapter/**'
+      - 'Duxo Analyzer/**'
+      - 'Duxo Adapter/**'
       - 'desktop/**'
       - 'resources/**'
       - 'tests/**'
@@ -23,7 +23,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: release-akron
+  group: release-duxo
   cancel-in-progress: false
 
 env:
@@ -32,7 +32,7 @@ env:
 jobs:
   release:
     if: github.actor != 'github-actions[bot]'
-    name: Bump and publish Akron release
+    name: Bump and publish Duxo release
     runs-on: ubuntu-latest
     outputs:
       release_tag: ${{ steps.mode.outputs.tag }}
@@ -78,7 +78,7 @@ jobs:
             base="${latest_tag#v}"
             IFS='.' read -r major minor _patch <<< "$base"
             if [[ ! "$major" =~ ^[0-9]+$ || ! "$minor" =~ ^[0-9]+$ ]]; then
-              echo "Latest tag '$latest_tag' is not a supported Akron release version." >&2
+              echo "Latest tag '$latest_tag' is not a supported Duxo release version." >&2
               exit 1
             fi
             if [[ "$major" == "0" && "$minor" -ge 9 ]]; then
@@ -164,7 +164,7 @@ jobs:
           if git rev-parse "$RELEASE_TAG" >/dev/null 2>&1; then
             echo "Using existing release tag $RELEASE_TAG"
           else
-            git tag -a "$RELEASE_TAG" -m "Akron $RELEASE_TAG" origin/main
+            git tag -a "$RELEASE_TAG" -m "Duxo $RELEASE_TAG" origin/main
             git push origin "$RELEASE_TAG"
           fi
 
@@ -177,7 +177,7 @@ jobs:
           if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "Using existing GitHub release $RELEASE_TAG"
           else
-            gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --title "Akron $RELEASE_TAG" --generate-notes
+            gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --title "Duxo $RELEASE_TAG" --generate-notes
           fi
 
   macos-build:
