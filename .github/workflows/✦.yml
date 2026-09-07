@@ -22,60 +22,21 @@ on:
         description: 'Existing release tag to resume, e.g. v1.9 (leave empty for a new release)'
         required: false
         type: string
+
 permissions:
   contents: write
+
 concurrency:
   group: release-duxo
   cancel-in-progress: false
+
 env:
   GH_TOKEN: ${{ github.token }}
+
 jobs:
-  release-gate:
-    name: Check for release-worthy changes
-    runs-on: ubuntu-latest
-    outputs:
-      release: ${{ steps.gate.outputs.release }}
-    steps:
-      - name: Checkout main history
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-          ref: main
-      - name: Check for substantive product changes
-        id: gate
-        env:
-          RELEASE_TAG_INPUT: ${{ inputs.release_tag || '' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ -n "$RELEASE_TAG_INPUT" ]]; then
-            echo "Manual resume requested for $RELEASE_TAG_INPUT."
-            echo "release=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          latest_tag="$(git tag --list 'v[0-9]*' --sort=-v:refname | head -n 1)"
-          if [[ -z "$latest_tag" ]]; then
-            echo "No published release tag found; allowing initial release."
-            echo "release=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          echo "Comparing HEAD against $latest_tag"
-          changed_files="$(git diff --name-only "$latest_tag"..HEAD)"
-          printf '%s\n' "$changed_files"
-          release_files="$(printf '%s\n' "$changed_files" | grep -E '^(Duxo Analyzer/.*\.rs$|Duxo Adapter/.*\.rs$|desktop/(src|renderer|scripts)/.*\.(ts|tsx|js|mjs|cjs|css|html)$|desktop/macos/.*\.(swift|sh|plist)$|desktop/package(-lock)?\.json$|resources/|tests/.*\.(rs|ts|tsx|js|mjs|cjs)$|Cargo\.toml$|Cargo\.lock$)' || true)"
-          if [[ -z "$release_files" ]]; then
-            echo "No substantive product changes found."
-            echo "Documentation-only and workflow-only changes do not create releases."
-            echo "release=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          echo "Substantive product changes detected:"
-          printf '%s\n' "$release_files"
-          echo "release=true" >> "$GITHUB_OUTPUT"
   release:
-    needs: release-gate
-    if: needs.release-gate.outputs.release == 'true' && github.actor != 'github-actions[bot]'
-    name: Publish Duxo release
+    if: github.actor != 'github-actions[bot]'
+    name: Prepare Duxo release
     runs-on: ubuntu-latest
     outputs:
       release_tag: ${{ steps.mode.outputs.tag }}
@@ -85,10 +46,28 @@ jobs:
         with:
           fetch-depth: 0
           ref: main
+
       - name: Setup Node.js
         uses: actions/setup-node@v5
         with:
           node-version: 24
+
+      - name: Check for release-worthy changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          release_tag_input="${{ inputs.release_tag || '' }}"
+          if [[ -n "$release_tag_input" ]]; then
+            exit 0
+          fi
+          latest_tag="$(git tag --list 'v[0-9]*' --sort=-v:refname | head -n 1)"
+          if [[ -z "$latest_tag" ]]; then
+            exit 0
+          fi
+          changed_files="$(git diff --name-only "$latest_tag"..HEAD)"
+          release_files="$(printf '%s\n' "$changed_files" | grep -E '^(Duxo Analyzer/.*\.rs$|Duxo Adapter/.*\.rs$|desktop/(src|renderer|scripts)/.*\.(ts|tsx|js|mjs|cjs|css|html)$|desktop/macos/.*\.(swift|sh|plist)$|desktop/package(-lock)?\.json$|resources/|tests/.*\.(rs|ts|tsx|js|mjs|cjs)$|Cargo\.toml$|Cargo\.lock$)' || true)"
+          test -n "$release_files"
+
       - name: Resolve release mode
         id: mode
         env:
@@ -109,6 +88,7 @@ jobs:
             echo "tag=$release_tag" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+
           latest_tag="$(git tag --list 'v[0-9]*' --sort=-v:refname | head -n 1)"
           current="$(node -p "require('./desktop/package.json').version")"
           if [[ -z "$latest_tag" ]]; then
@@ -128,6 +108,7 @@ jobs:
               release_version="${major}.$((minor + 1)).0"
             fi
           fi
+
           release_tag="v${release_version%.*}"
           echo "mode=new" >> "$GITHUB_OUTPUT"
           echo "version=$release_version" >> "$GITHUB_OUTPUT"
@@ -136,6 +117,7 @@ jobs:
             echo "Release tag already exists: $release_tag" >&2
             exit 1
           fi
+
       - name: Update application versions
         if: steps.mode.outputs.mode == 'new'
         env:
@@ -163,6 +145,7 @@ jobs:
           with path.open('wb') as handle:
               plistlib.dump(plist, handle, fmt=plistlib.FMT_XML, sort_keys=False)
           PY
+
       - name: Verify version files
         if: steps.mode.outputs.mode == 'new'
         env:
@@ -177,6 +160,7 @@ jobs:
               print(plistlib.load(handle)['CFBundleShortVersionString'])
           PY
           )" = "$RELEASE_VERSION"
+
       - name: Commit version bump
         if: steps.mode.outputs.mode == 'new'
         shell: bash
@@ -188,6 +172,7 @@ jobs:
           git add desktop/package.json desktop/macos/Info.plist
           git commit -m "chore: bump release version to ${{ steps.mode.outputs.tag }} [skip ci]"
           git push origin main
+
       - name: Create release tag
         env:
           RELEASE_TAG: ${{ steps.mode.outputs.tag }}
@@ -201,25 +186,16 @@ jobs:
             git tag -a "$RELEASE_TAG" -m "Duxo $RELEASE_TAG" origin/main
             git push origin "$RELEASE_TAG"
           fi
-      - name: Ensure GitHub release exists
-        env:
-          RELEASE_TAG: ${{ steps.mode.outputs.tag }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "Using existing GitHub release $RELEASE_TAG"
-          else
-            gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --title "Duxo $RELEASE_TAG" --generate-notes
-          fi
+
   macos-build:
     name:  Build
     needs: release
     uses: ./.github/workflows/.yml
     with:
       ref: ${{ needs.release.outputs.release_tag }}
+
   publish-macos:
-    name: Publish macOS release
+    name: Publish Duxo release
     needs: [release, macos-build]
     runs-on: ubuntu-latest
     env:
@@ -230,6 +206,7 @@ jobs:
         with:
           name: duxo-macos-arm64
           path: release-assets
+
       - name: Verify release assets
         shell: bash
         run: |
@@ -242,6 +219,17 @@ jobs:
             release-assets/Duxo-Native-macos-arm64.dmg.sha256; do
             test -f "$asset" || { echo "Missing release asset: $asset" >&2; exit 1; }
           done
+
+      - name: Create or reuse GitHub release
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Using existing GitHub release $RELEASE_TAG"
+          else
+            gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --title "Duxo $RELEASE_TAG" --generate-notes
+          fi
+
       - name: Attach macOS artifacts to GitHub release
         shell: bash
         run: |
