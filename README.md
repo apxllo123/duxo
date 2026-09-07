@@ -8,7 +8,10 @@
 
 <p>Duxo analyzes a game's files, executables, dependencies, runtime requirements, graphics stack, and protection signals before an adaptation plan is generated.</p>
 
-[![ Build](https://img.shields.io/github/actions/workflow/status/apxllo123/duxo/.github/workflows/%EF%A3%BF.yml?label=%EF%A3%BF%20Build&style=for-the-badge&color=4c8bf5)](https://github.com/apxllo123/duxo/actions/workflows/%EF%A3%BF.yml)
+[![ Duxo Build](https://img.shields.io/github/actions/workflow/status/apxllo123/duxo/%EF%A3%BF.yml?label=%EF%A3%BF%20Duxo%20Build&style=for-the-badge&color=4c8bf5)](https://github.com/apxllo123/duxo/actions/workflows/%EF%A3%BF.yml)
+[![⌘ Duxo Electron](https://img.shields.io/github/actions/workflow/status/apxllo123/duxo/%E2%8C%98.yml?label=%E2%8C%98%20Duxo%20Electron&style=for-the-badge&color=8b5cf6)](https://github.com/apxllo123/duxo/actions/workflows/%E2%8C%98.yml)
+[![⚙ Duxo Rust](https://img.shields.io/github/actions/workflow/status/apxllo123/duxo/%E2%9A%99.yml?label=%E2%9A%99%20Duxo%20Rust&style=for-the-badge&color=64748b)](https://github.com/apxllo123/duxo/actions/workflows/%E2%9A%99.yml)
+[![▣ Duxo Release](https://img.shields.io/github/actions/workflow/status/apxllo123/duxo/%E2%96%A3.yml?label=%E2%96%A3%20Duxo%20Release&style=for-the-badge&color=f59e0b)](https://github.com/apxllo123/duxo/actions/workflows/%E2%96%A3.yml)
 [![Release](https://img.shields.io/github/v/release/apxllo123/duxo?display_name=tag&style=for-the-badge&color=7c5cff)](https://github.com/apxllo123/duxo/releases)
 [![License](https://img.shields.io/github/license/apxllo123/duxo?style=for-the-badge&color=2ea043)](LICENSE)
 
@@ -78,7 +81,7 @@ Current desktop functionality includes:
                                      │
                            ┌─────────┴─────────┐
                            │                   │
-                    Akron Analyzer       Akron Adapter
+                    Duxo Analyzer       Duxo Adapter
                          Rust                  Rust
                            │                   │
                            └─────────┬─────────┘
@@ -92,3 +95,285 @@ Current desktop functionality includes:
                         └────────────┬────────────┘
                                      │
                               Adaptation Plan
+```
+
+### Analyzer → Profile → Plan
+
+```text
+Game files
+   ↓
+Manifest
+   ↓
+PE / dependency / protection analysis
+   ↓
+GameProfile
+   ↓
+Adaptation planning
+   ↓
+Explicit Ready / Blocked steps
+```
+
+This separation keeps evidence gathering independent from conversion decisions and gives future conversion executors a stable input model.
+
+## 🎯 Per-Game Capability Profiles
+
+Duxo is designed to make game-specific requirements visible before adaptation begins.
+
+A capability profile can capture information such as:
+
+- Direct3D 9 / 10 / 11 / 12 requirements discovered from PE imports
+- DXGI requirements
+- Windows API families such as windowing/input and networking
+- Microsoft Visual C++ runtime requirements
+- Binary-to-binary dependencies
+- Unresolved imports that still require implementation or resolution
+- Protection and anti-cheat signals
+
+The resulting profile becomes the source of truth for adaptation planning rather than relying on assumptions about what a game needs.
+
+## 🛡️ Protection & Safety Signals
+
+The Analyzer can identify evidence associated with packers/protectors and anti-cheat technologies.
+
+These signals are **diagnostic**. Duxo does not treat detection as automatic permission to bypass or remove a protection mechanism, and a detected technology can cause an adaptation step to remain blocked until a legitimate implementation exists.
+
+## 🎨 Branding & Assets
+
+The canonical application artwork lives at:
+
+```text
+resources/icon.png
+```
+
+The original source artwork is retained as:
+
+```text
+resources/icon.jpeg
+```
+
+The PNG is the packaging source for generated macOS and Windows icon assets. The repository README references the canonical PNG directly so the project branding and packaged application icon use the same source artwork.
+
+## 🚦 Project Status
+
+### Working
+
+- [x] Recursive game analysis
+- [x] File inventory and SHA-256 hashing
+- [x] Executable detection
+- [x] PE architecture detection
+- [x] PE headers, sections, and imports
+- [x] Binary dependency graph generation
+- [x] Protection-signal detection
+- [x] Per-game capability profiles
+- [x] Per-game adaptation plans
+- [x] Explicit dependency-resolution states
+- [x] Rust Analyzer library and CLI
+- [x] Rust Adapter library and CLI
+- [x] Electron desktop shell
+- [x] Native game-folder selection
+- [x] Analyzer/Adapter execution from the desktop app
+- [x] macOS ARM64 packaging pipeline
+- [x] Windows packaging pipeline
+- [x] Rust CI and Electron CI
+- [x] Automated release workflow
+
+### In Progress / Planned
+
+- [ ] Full adaptation executors
+- [ ] Native D3D/graphics adaptation modules
+- [ ] Win32 API implementation coverage
+- [ ] Runtime resolution and installation coverage
+- [ ] Source-to-target file transformation
+- [ ] x86 → ARM64 recompilation backend
+- [ ] Automatic converted-game validation and launch testing
+- [ ] Broader graphics backend support
+- [ ] Production signing and notarization
+- [ ] Full online/API service layer
+
+These items are intentionally separated from the implemented feature set so the README does not overstate the current capabilities of the project.
+
+## 🧪 Development & Verification
+
+### Requirements
+
+- Rust stable toolchain
+- Node.js 24+
+- npm
+
+### Rust
+
+```bash
+cargo fmt --all -- --check
+cargo check --workspace --all-targets
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace --all-targets
+cargo build --workspace --release
+```
+
+### Desktop
+
+```bash
+cd desktop
+npm install
+npm run typecheck
+npm run compile
+npm run build
+```
+
+### Run the Analyzer
+
+```bash
+cargo run -p duxo-analyzer -- /path/to/game
+```
+
+The command outputs the generated game manifest as JSON.
+
+### Run the Adapter
+
+```bash
+printf '%s\n' '<GameProfile JSON>' | cargo run -p duxo-adapter
+```
+
+The Adapter reads a serialized `GameProfile` from standard input and writes the generated adaptation plan as JSON.
+
+### Run the Desktop App
+
+```bash
+cd desktop
+npm install
+npm start
+```
+
+## 📦 Releases
+
+Duxo releases are versioned using the public sequence:
+
+```text
+v0.1 → v0.2 → … → v0.9 → v1.0 → v1.1 → …
+```
+
+Application versions remain valid semantic versions internally (`0.1.0`, `1.0.0`, etc.), while the public release tags use the shorter display form.
+
+The release workflow is designed to:
+
+1. Detect the next release number.
+2. Update the desktop package and macOS bundle versions together.
+3. Create the matching Git tag.
+4. Publish the GitHub Release.
+5. Build the tagged application.
+6. Attach the macOS ARM64 ZIP, DMG, and checksums to the release.
+
+Documentation-only changes are intentionally excluded from expensive application build/release automation.
+
+## ⚙️ CI & Automation
+
+Duxo separates verification from packaging while keeping both automated.
+
+###  Duxo Build
+
+`.github/workflows/.yml` handles the macOS application build and packaging pipeline.
+
+### ⌘ Duxo Electron
+
+`.github/workflows/⌘.yml` handles Electron and renderer verification across the supported desktop targets.
+
+### ⚙ Duxo Rust
+
+`.github/workflows/⚙.yml` handles Rust formatting, compilation, Clippy, tests, and release builds.
+
+### ▣ Duxo Release
+
+`.github/workflows/▣.yml` handles release-number progression and coordinates tagged builds and release assets.
+
+The workflows are path-aware so README/docs-only edits do not repeatedly consume build time.
+
+## 📁 Repository Layout
+
+```text
+Duxo/
+├── Duxo Analyzer/           # Rust game analysis engine
+│   └── src/
+├── Duxo Adapter/            # Rust adaptation planning engine
+│   └── src/
+├── desktop/                 # Electron + TypeScript application
+│   ├── src/
+│   ├── renderer/
+│   ├── scripts/
+│   └── macos/
+├── resources/               # Project artwork and shared assets
+│   ├── icon.png
+│   └── icon.jpeg
+├── tests/                   # Integration and future compatibility tests
+├── docs/                    # Architecture and platform documentation
+└── .github/workflows/       # CI, build, and release automation
+```
+
+## 🧭 Engineering Approach
+
+Duxo follows a verification-first development loop:
+
+```text
+Inspect
+  ↓
+Reproduce / Measure
+  ↓
+Implement
+  ↓
+Format + Typecheck + Compile
+  ↓
+Clippy + Tests
+  ↓
+Build
+  ↓
+Inspect the artifact
+  ↓
+Fix and refine
+```
+
+The core principles are:
+
+- **Analysis before adaptation** — establish evidence before making conversion decisions.
+- **Explicit capabilities** — represent what is known, unknown, ready, or blocked.
+- **Root-cause fixes** — correct the implementation instead of suppressing diagnostics.
+- **Reproducible builds** — packaging and versioning should be deterministic and automatable.
+- **Honest status reporting** — unfinished conversion functionality stays clearly marked as unfinished.
+
+## 🗺️ Roadmap
+
+### Phase 1 — Understand
+
+Create a complete, reliable description of the game's files, binaries, dependencies, and runtime assumptions.
+
+### Phase 2 — Model
+
+Turn analysis evidence into capability profiles and adaptation requirements.
+
+### Phase 3 — Adapt
+
+Implement the platform-specific executors required by the generated plan.
+
+### Phase 4 — Convert
+
+Produce target-platform application packages while preserving game content and behavior wherever technically possible.
+
+### Phase 5 — Validate
+
+Automatically launch and exercise converted titles, capture diagnostics, and compare expected versus observed behavior.
+
+### Phase 6 — Improve
+
+Use measured compatibility and failure data to expand coverage and reduce manual intervention.
+
+## 🖥️ Platform Focus
+
+```text
+macOS / Apple Silicon   → primary
+Windows                 → secondary
+Linux                   → deferred
+```
+
+Linux is deferred at the product level for now; the core architecture remains structured so additional targets can be introduced later without redesigning the analysis model.
+
+## 📄 License
+
+Duxo is licensed under the [MIT License](LICENSE).
