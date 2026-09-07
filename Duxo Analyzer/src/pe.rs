@@ -50,7 +50,11 @@ pub fn analyze_pe(path: &Path) -> Result<PeBinaryAnalysis> {
         .iter()
         .map(|import| PeImport {
             library: import.dll.to_ascii_lowercase(),
-            name: if import.name.is_empty() { None } else { Some(import.name.to_string()) },
+            name: if import.name.is_empty() {
+                None
+            } else {
+                Some(import.name.to_string())
+            },
             ordinal: (import.ordinal != 0).then_some(import.ordinal),
             rva: import.rva as u64,
         })
