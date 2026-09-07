@@ -29,36 +29,135 @@ permissions:
 
 jobs:
   check:
-    name: ⚙ Rust Check (${{ matrix.os }})
+    name: ⚙ Rust (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, windows-latest]
+        include:
+          - os: macos-26
+            expected_arch: arm64
+          - os: windows-2025
+            expected_arch: x64
+          - os: ubuntu-latest
+            expected_arch: x64
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
 
-      - name: Install Rust
+      - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
 
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v2
+      - name: Capture runner environment
+        shell: bash
+        env:
+          EXPECTED_ARCH: ${{ matrix.expected_arch }}
+        run: |
+          set -euo pipefail
+          mkdir -p .ci-report
+          {
+            echo "=== Duxo Rust CI environment ==="
+            echo "Runner OS: $RUNNER_OS"
+            echo "Runner arch: $RUNNER_ARCH"
+            echo "Machine arch: $(uname -m 2>/dev/null || echo unavailable)"
+            echo "Expected arch: $EXPECTED_ARCH"
+            echo "Rust: $(rustc --version)"
+            echo "Cargo: $(cargo --version)"
+            if [[ "$RUNNER_OS" == "macOS" ]]; then
+              sw_vers
+              xcode-select -p
+              xcodebuild -version
+            elif [[ "$RUNNER_OS" == "Windows" ]]; then
+              powershell -NoProfile -Command '$PSVersionTable.PSVersion.ToString()'
+            fi
+          } | tee .ci-report/environment.txt
+
+          case "$RUNNER_OS/$EXPECTED_ARCH" in
+            macOS/arm64)
+              test "$(uname -m)" = "arm64"
+              ;;
+            Windows/x64|Linux/x64)
+              test "${RUNNER_ARCH,,}" = "x64"
+              ;;
+          esac
+
+      - name: Validate workspace metadata
+        run: |
+          cargo metadata --locked --no-deps --format-version 1 > .ci-report/cargo-metadata.json
+          python3 - <<'PY'
+          import json
+          data = json.load(open('.ci-report/cargo-metadata.json'))
+          names = sorted(pkg['name'] for pkg in data['packages'])
+          required = {'duxo-analyzer', 'duxo-adapter'}
+          missing = required - set(names)
+          if missing:
+              raise SystemExit(f"Missing workspace packages: {sorted(missing)}")
+          print('Workspace packages:', names)
+          PY
 
       - name: Check formatting
         run: cargo fmt --all -- --check
 
-      - name: Cargo check
-        run: cargo check --workspace --all-targets
+      - name: Cargo check with lockfile enforcement
+        run: cargo check --workspace --all-targets --locked
 
-      - name: Clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Clippy with warnings as errors
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
-      - name: Tests
-        run: cargo test --workspace --all-targets
+      - name: Run unit and integration tests
+        run: cargo test --workspace --all-targets --locked --no-fail-fast
 
-      - name: Release build
-        run: cargo build --workspace --release
+      - name: Run documentation tests
+        run: cargo test --workspace --doc --locked --no-fail-fast
+
+      - name: Release build with lockfile enforcement
+        run: cargo build --workspace --release --locked
+
+      - name: Validate produced binaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            test -f "target/release/duxo-analyzer.exe"
+            test -f "target/release/duxo-adapter.exe"
+          else
+            test -x "target/release/duxo-analyzer"
+            test -x "target/release/duxo-adapter"
+          fi
+          ls -lh target/release/duxo-analyzer* target/release/duxo-adapter*
+
+      - name: Exercise Analyzer and Adapter CLI contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            ANALYZER="target/release/duxo-analyzer.exe"
+            ADAPTER="target/release/duxo-adapter.exe"
+          else
+            ANALYZER="target/release/duxo-analyzer"
+            ADAPTER="target/release/duxo-adapter"
+          fi
+          set +e
+          "$ANALYZER" > .ci-report/analyzer-no-arg.stdout 2> .ci-report/analyzer-no-arg.stderr
+          analyzer_code=$?
+          "$ADAPTER" > .ci-report/adapter-empty.stdout 2> .ci-report/adapter-empty.stderr
+          adapter_code=$?
+          set -e
+          test "$analyzer_code" -ne 0
+          test "$adapter_code" -ne 0
+          test -s .ci-report/analyzer-no-arg.stderr
+          test -s .ci-report/adapter-empty.stderr
+          echo "CLI negative-path contracts validated."
+
+      - name: Upload Rust CI diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: duxo-rust-ci-${{ matrix.os }}-${{ github.run_attempt }}
+          path: .ci-report
+          if-no-files-found: error
