@@ -106,7 +106,8 @@ final class DuxoController: NSObject, NSApplicationDelegate, WKNavigationDelegat
         ]
         do {
             for (index, stage) in stages.enumerated() {
-                let ok = try stage.1; guard ok else { respondError(id: id, message: "\(stage.0) failed."); return }
+                let ok = try stage.1()
+                guard ok else { respondError(id: id, message: "\(stage.0) failed."); return }
                 let percent = Int(((index + 1) * 100) / stages.count); sendProgress(message: stage.0, percent: percent, complete: percent == 100)
             }
             respond(id: id, result: ["workspace": workspace.path, "analyzer": analyzer.path, "adapter": adapter.path])
