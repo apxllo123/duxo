@@ -18,17 +18,13 @@ on:
         description: 'Existing release tag to resume, e.g. v1.9 (leave empty for a new release)'
         required: false
         type: string
-
 permissions:
   contents: write
-
 concurrency:
   group: release-duxo
   cancel-in-progress: false
-
 env:
   GH_TOKEN: ${{ github.token }}
-
 jobs:
   release:
     if: github.actor != 'github-actions[bot]'
@@ -36,19 +32,16 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       release_tag: ${{ steps.mode.outputs.tag }}
-
     steps:
       - name: Checkout main
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
           ref: main
-
       - name: Setup Node.js
         uses: actions/setup-node@v5
         with:
           node-version: 24
-
       - name: Resolve release mode
         id: mode
         env:
@@ -69,7 +62,6 @@ jobs:
             echo "tag=$release_tag" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-
           latest_tag="$(git tag --list 'v[0-9]*' --sort=-v:refname | head -n 1)"
           current="$(node -p "require('./desktop/package.json').version")"
           if [[ -z "$latest_tag" ]]; then
@@ -89,7 +81,6 @@ jobs:
               release_version="${major}.$((minor + 1)).0"
             fi
           fi
-
           release_tag="v${release_version%.*}"
           echo "mode=new" >> "$GITHUB_OUTPUT"
           echo "version=$release_version" >> "$GITHUB_OUTPUT"
@@ -98,7 +89,6 @@ jobs:
             echo "Release tag already exists: $release_tag" >&2
             exit 1
           fi
-
       - name: Update application versions
         if: steps.mode.outputs.mode == 'new'
         env:
@@ -126,7 +116,6 @@ jobs:
           with path.open('wb') as handle:
               plistlib.dump(plist, handle, fmt=plistlib.FMT_XML, sort_keys=False)
           PY
-
       - name: Verify version files
         if: steps.mode.outputs.mode == 'new'
         env:
@@ -141,7 +130,6 @@ jobs:
               print(plistlib.load(handle)['CFBundleShortVersionString'])
           PY
           )" = "$RELEASE_VERSION"
-
       - name: Commit version bump
         if: steps.mode.outputs.mode == 'new'
         shell: bash
@@ -153,7 +141,6 @@ jobs:
           git add desktop/package.json desktop/macos/Info.plist
           git commit -m "chore: bump release version to ${{ steps.mode.outputs.tag }} [skip ci]"
           git push origin main
-
       - name: Create release tag
         env:
           RELEASE_TAG: ${{ steps.mode.outputs.tag }}
@@ -167,7 +154,6 @@ jobs:
             git tag -a "$RELEASE_TAG" -m "Duxo $RELEASE_TAG" origin/main
             git push origin "$RELEASE_TAG"
           fi
-
       - name: Ensure GitHub release exists
         env:
           RELEASE_TAG: ${{ steps.mode.outputs.tag }}
@@ -179,14 +165,12 @@ jobs:
           else
             gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --title "Duxo $RELEASE_TAG" --generate-notes
           fi
-
   macos-build:
     name: Build  macOS release
     needs: release
     uses: ./.github/workflows/.yml
     with:
       ref: ${{ needs.release.outputs.release_tag }}
-
   publish-macos:
     name: Publish  macOS release assets
     needs: [release, macos-build]
@@ -197,30 +181,28 @@ jobs:
       - name: Download macOS build artifact
         uses: actions/download-artifact@v4
         with:
-          name: akron-macos-arm64
+          name: duxo-macos-arm64
           path: release-assets
-
       - name: Verify release assets
         shell: bash
         run: |
           set -euo pipefail
           find release-assets -type f -print
           for asset in \
-            release-assets/Akron-Native-macos-arm64.zip \
-            release-assets/Akron-Native-macos-arm64.zip.sha256 \
-            release-assets/Akron-Native-macos-arm64.dmg \
-            release-assets/Akron-Native-macos-arm64.dmg.sha256; do
+            release-assets/Duxo-Native-macos-arm64.zip \
+            release-assets/Duxo-Native-macos-arm64.zip.sha256 \
+            release-assets/Duxo-Native-macos-arm64.dmg \
+            release-assets/Duxo-Native-macos-arm64.dmg.sha256; do
             test -f "$asset" || { echo "Missing release asset: $asset" >&2; exit 1; }
           done
-
       - name: Attach macOS artifacts to GitHub release
         shell: bash
         run: |
           set -euo pipefail
           gh release upload "$RELEASE_TAG" \
-            release-assets/Akron-Native-macos-arm64.zip \
-            release-assets/Akron-Native-macos-arm64.zip.sha256 \
-            release-assets/Akron-Native-macos-arm64.dmg \
-            release-assets/Akron-Native-macos-arm64.dmg.sha256 \
+            release-assets/Duxo-Native-macos-arm64.zip \
+            release-assets/Duxo-Native-macos-arm64.zip.sha256 \
+            release-assets/Duxo-Native-macos-arm64.dmg \
+            release-assets/Duxo-Native-macos-arm64.dmg.sha256 \
             --repo "$GITHUB_REPOSITORY" \
             --clobber
