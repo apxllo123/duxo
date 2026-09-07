@@ -213,13 +213,13 @@ jobs:
             gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --title "Duxo $RELEASE_TAG" --generate-notes
           fi
   macos-build:
-    name: Build  macOS release
+    name:  Build
     needs: release
     uses: ./.github/workflows/.yml
     with:
       ref: ${{ needs.release.outputs.release_tag }}
   publish-macos:
-    name: Publish  macOS release assets
+    name: Publish macOS release
     needs: [release, macos-build]
     runs-on: ubuntu-latest
     env:
