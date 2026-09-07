@@ -28,24 +28,77 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, windows-latest]
+        include:
+          - os: macos-26
+            expected_arch: arm64
+          - os: windows-2025
+            expected_arch: x64
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
 
-      - name: Setup Node.js
+      - name: Setup Node.js 24.20.0
         uses: actions/setup-node@v5
         with:
-          node-version: 24
+          node-version: 24.20.0
+          check-latest: true
           cache: npm
-          cache-dependency-path: desktop/package.json
+          cache-dependency-path: desktop/package-lock.json
 
-      - name: Install dependencies
+      - name: Capture runner environment
+        shell: bash
+        env:
+          EXPECTED_ARCH: ${{ matrix.expected_arch }}
+        run: |
+          set -euo pipefail
+          mkdir -p .ci-report
+          {
+            echo "=== Duxo Electron CI environment ==="
+            echo "Runner OS: $RUNNER_OS"
+            echo "Runner arch: $RUNNER_ARCH"
+            echo "Machine arch: $(uname -m 2>/dev/null || echo unavailable)"
+            echo "Expected arch: $EXPECTED_ARCH"
+            echo "Node: $(node --version)"
+            echo "npm: $(npm --version)"
+            echo "Electron platform: $(node -p 'process.platform')"
+            echo "Electron arch target: $(node -p 'process.arch')"
+            if [[ "$RUNNER_OS" == "macOS" ]]; then
+              sw_vers
+              xcode-select -p
+              xcodebuild -version
+              swift --version
+            elif [[ "$RUNNER_OS" == "Windows" ]]; then
+              powershell -NoProfile -Command '$PSVersionTable.PSVersion.ToString()'
+              node -p 'process.env.PROCESSOR_ARCHITECTURE'
+            fi
+          } | tee .ci-report/environment.txt
+
+          case "$RUNNER_OS/$EXPECTED_ARCH" in
+            macOS/arm64)
+              test "$(uname -m)" = "arm64"
+              ;;
+            Windows/x64)
+              test "${RUNNER_ARCH,,}" = "x64"
+              ;;
+          esac
+
+      - name: Verify lockfile is present and installation is deterministic
         working-directory: desktop
-        run: npm install --no-audit --no-fund
+        run: test -s package-lock.json
 
-      - name: Typecheck
+      - name: Install dependencies with npm ci
+        working-directory: desktop
+        run: npm ci --no-audit --no-fund
+
+      - name: Verify dependency tree is clean
+        working-directory: desktop
+        shell: bash
+        run: npm ls --all --depth=0
+
+      - name: Typecheck TypeScript
         working-directory: desktop
         run: npm run typecheck
 
@@ -61,6 +114,20 @@ jobs:
         working-directory: desktop
         run: node scripts/build.mjs
 
+      - name: Validate generated application structure
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f desktop/dist-electron/main.js
+          test -f desktop/dist-electron/preload.js
+          test -f desktop/dist-renderer/index.html
+          test -f desktop/dist-renderer/renderer.js
+          test -f desktop/dist-renderer/styles.css
+          node --check desktop/dist-electron/main.js
+          node --check desktop/dist-electron/preload.js
+          node --check desktop/dist-renderer/renderer.js
+          test "$(node -p 'require("./desktop/package.json").main')" = "dist-electron/main.js"
+
       - name: Prepare application icons
         working-directory: desktop
         run: npm run prepare-icons
@@ -71,8 +138,40 @@ jobs:
           set -euo pipefail
           test -s desktop/build/icon.png
           test -s desktop/build/icon.ico
-          echo "Generated PNG and ICO icon assets successfully."
           if [[ "$RUNNER_OS" == "macOS" ]]; then
             test -s desktop/build/icon.icns
-            echo "Generated ICNS icon asset successfully."
+            /usr/bin/sips -g pixelWidth -g pixelHeight desktop/build/icon.png
           fi
+          echo "Generated icon assets successfully."
+
+      - name: Validate Electron runtime matches package metadata
+        working-directory: desktop
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected="$(node -p 'require("./package.json").devDependencies.electron')"
+          actual="$(node -p 'require("electron/package.json").version')"
+          test "$actual" = "$expected"
+          node_modules/.bin/electron --version
+          echo "Electron $actual verified against package.json."
+
+      - name: Emit CI diagnostics
+        if: always()
+        shell: bash
+        run: |
+          set -u
+          {
+            echo "=== Git state ==="
+            git rev-parse HEAD
+            git status --short
+            echo "=== Generated desktop tree ==="
+            find desktop/dist-electron desktop/dist-renderer desktop/build -maxdepth 2 -type f -print 2>/dev/null | sort
+          } > .ci-report/build-diagnostics.txt
+
+      - name: Upload Electron CI diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: duxo-electron-ci-${{ matrix.os }}-${{ github.run_attempt }}
+          path: .ci-report
+          if-no-files-found: error
