@@ -439,11 +439,9 @@ mod tests {
             plan.dependency_resolutions[3].kind,
             DependencyResolutionKind::Unresolved
         );
-        assert!(
-            plan.steps.iter().any(|step| {
-                step.id == "resolve-dependencies" && step.status == StepStatus::Blocked
-            })
-        );
+        assert!(plan.steps.iter().any(|step| {
+            step.id == "resolve-dependencies" && step.status == StepStatus::Blocked
+        }));
     }
 
     #[test]
