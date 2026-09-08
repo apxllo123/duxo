@@ -56,12 +56,7 @@ jobs:
           resolved_sha="$(git rev-parse "$BUILD_REF^{commit}")"
           echo "Checked-out HEAD: $checked_out_sha"
           echo "Resolved ref: $resolved_sha"
-          test "$checked_out_sha" = "$resolved_sha" || {
-            echo "FAIL: checkout does not match requested ref." >&2
-            exit 1
-          }
-          echo "Working tree status:"
-          git status --short
+          test "$checked_out_sha" = "$resolved_sha" || { echo "FAIL: checkout does not match requested ref." >&2; exit 1; }
           echo "== PE analyzer source at HEAD =="
           git show HEAD:"Duxo Analyzer/src/pe.rs" | grep -nE 'export\.ordinal|import\.ordinal' || true
           if git show HEAD:"Duxo Analyzer/src/pe.rs" | grep -q 'export\.ordinal'; then
@@ -79,8 +74,6 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: 24
-          cache: npm
-          cache-dependency-path: desktop/package.json
       - name: Print build toolchain
         run: |
           set -euo pipefail
@@ -94,12 +87,15 @@ jobs:
         uses: Swatinem/rust-cache@v2
       - name: Build Analyzer
         run: cargo build --release -p duxo-analyzer
-      - name: Stage Analyzer runtime
+      - name: Build Adapter
+        run: cargo build --release -p duxo-adapter
+      - name: Stage native runtime
         shell: bash
         run: |
           set -euo pipefail
           rm -rf desktop/resources/*
           install -m 755 target/release/duxo-analyzer desktop/resources/duxo-analyzer
+          install -m 755 target/release/duxo-adapter desktop/resources/duxo-adapter
       - name: Install desktop dependencies
         working-directory: desktop
         run: npm install --no-audit --no-fund
@@ -128,57 +124,74 @@ jobs:
       - name: Validate native macOS artifacts
         shell: bash
         run: |
-          set -euo pipefail
+          set -u
+          fail=0
           APP="desktop/dist-native/Duxo.app"
           ZIP="desktop/dist-native/Duxo-Native-macos-arm64.zip"
           ZIP_SHA="desktop/dist-native/Duxo-Native-macos-arm64.zip.sha256"
           DMG="desktop/dist-native/Duxo-Native-macos-arm64.dmg"
           DMG_SHA="desktop/dist-native/Duxo-Native-macos-arm64.dmg.sha256"
-          test -d "$APP"
-          test -f "$ZIP"
-          test -f "$ZIP_SHA"
-          test -f "$DMG"
-          test -f "$DMG_SHA"
-          /usr/bin/plutil -lint "$APP/Contents/Info.plist"
+          check() {
+            local label="$1"; shift
+            if "$@"; then echo "PASS: $label"; else echo "FAIL: $label" >&2; fail=1; fi
+          }
+          check "app bundle exists" test -d "$APP"
+          check "ZIP exists" test -f "$ZIP"
+          check "ZIP checksum exists" test -f "$ZIP_SHA"
+          check "DMG exists" test -f "$DMG"
+          check "DMG checksum exists" test -f "$DMG_SHA"
+          check "Info.plist is valid" /usr/bin/plutil -lint "$APP/Contents/Info.plist"
           MAIN="$APP/Contents/MacOS/Duxo"
-          test -x "$MAIN"
-          /usr/bin/file "$MAIN"
+          check "native executable exists" test -x "$MAIN"
+          /usr/bin/file "$MAIN" || fail=1
           ANALYZER="$APP/Contents/Resources/duxo-runtime/duxo-analyzer"
-          test -x "$ANALYZER"
-          /usr/bin/file "$ANALYZER"
           ADAPTER="$APP/Contents/Resources/duxo-runtime/duxo-adapter"
-          test -x "$ADAPTER"
-          /usr/bin/file "$ADAPTER"
-          test -f "$APP/Contents/Resources/ui/index.html"
-          test -f "$APP/Contents/Resources/ui/renderer.js"
-          test -f "$APP/Contents/Resources/ui/styles.css"
+          check "Analyzer exists" test -x "$ANALYZER"
+          check "Adapter exists" test -x "$ADAPTER"
+          /usr/bin/file "$ANALYZER" || fail=1
+          /usr/bin/file "$ADAPTER" || fail=1
+          check "renderer index exists" test -f "$APP/Contents/Resources/ui/index.html"
+          check "renderer JavaScript exists" test -f "$APP/Contents/Resources/ui/renderer.js"
+          check "renderer stylesheet exists" test -f "$APP/Contents/Resources/ui/styles.css"
           MARKER="$APP/Contents/Resources/Duxo-Build.txt"
-          test -f "$MARKER"
-          grep -Fq "Host: AppKit + WKWebView" "$MARKER"
-          grep -Fq "Electron runtime: not used" "$MARKER"
-          grep -Fq "Validation profile: native-macos-v6" "$MARKER"
-          grep -Fq "Git SHA: $GITHUB_SHA" "$MARKER"
-          grep -Fq "Distribution: ZIP + DMG" "$MARKER"
+          check "build marker exists" test -f "$MARKER"
+          check "native host marker" grep -Fq "Host: AppKit + WKWebView" "$MARKER"
+          check "Electron absence marker" grep -Fq "Electron runtime: not used" "$MARKER"
+          check "validation profile marker" grep -Fq "Validation profile: native-macos-v6" "$MARKER"
+          check "Git SHA marker" grep -Fq "Git SHA: $GITHUB_SHA" "$MARKER"
+          check "distribution marker" grep -Fq "Distribution: ZIP + DMG" "$MARKER"
           ICON="$APP/Contents/Resources/Duxo.icns"
-          test -s "$ICON"
-          /usr/bin/plutil -extract CFBundleIconFile raw "$APP/Contents/Info.plist"
+          check "ICNS is non-empty" test -s "$ICON"
+          check "Info.plist points to Duxo icon" /usr/bin/plutil -extract CFBundleIconFile raw "$APP/Contents/Info.plist"
           if find "$APP/Contents" -type f \( -name 'Electron Framework' -o -name 'electron' -o -name 'app.asar' \) -print -quit | grep -q .; then
-            exit 1
+            echo "FAIL: Electron runtime artifacts found in native app." >&2
+            fail=1
+          else
+            echo "PASS: native app contains no Electron runtime artifacts"
           fi
-          /usr/bin/codesign --verify --deep --strict "$APP"
-          /usr/bin/shasum -a 256 -c "$ZIP_SHA"
-          /usr/bin/shasum -a 256 -c "$DMG_SHA"
-          MOUNT_INFO="$(/usr/bin/hdiutil attach "$DMG" -nobrowse -noautoopen)"
+          check "codesign verification" /usr/bin/codesign --verify --deep --strict "$APP"
+          check "ZIP checksum" /usr/bin/shasum -a 256 -c "$ZIP_SHA"
+          check "DMG checksum" /usr/bin/shasum -a 256 -c "$DMG_SHA"
+          MOUNT_INFO="$(/usr/bin/hdiutil attach "$DMG" -nobrowse -noautoopen 2>"$RUNNER_TEMP/Duxo-dmg-attach.err")"
           MOUNT_PATH="$(printf '%s\n' "$MOUNT_INFO" | awk -F'\t' '/\/Volumes\// {print $NF; exit}')"
-          test -n "$MOUNT_PATH"
-          trap '/usr/bin/hdiutil detach "$MOUNT_PATH" -quiet >/dev/null 2>&1 || true' EXIT
-          test -d "$MOUNT_PATH/Duxo.app"
-          test -d "$MOUNT_PATH/Applications"
-          test -x "$MOUNT_PATH/Duxo.app/Contents/MacOS/Duxo"
-          test -f "$MOUNT_PATH/Duxo.app/Contents/Resources/Duxo.icns"
-          /usr/bin/codesign --verify --deep --strict "$MOUNT_PATH/Duxo.app"
-          /usr/bin/hdiutil detach "$MOUNT_PATH" -quiet
-          trap - EXIT
+          if [[ -z "$MOUNT_PATH" ]]; then
+            echo "FAIL: DMG could not be mounted" >&2
+            cat "$RUNNER_TEMP/Duxo-dmg-attach.err" >&2 || true
+            fail=1
+          else
+            trap '/usr/bin/hdiutil detach "$MOUNT_PATH" -quiet >/dev/null 2>&1 || true' EXIT
+            check "DMG contains Duxo.app" test -d "$MOUNT_PATH/Duxo.app"
+            check "DMG contains Applications link" test -d "$MOUNT_PATH/Applications"
+            check "DMG native executable exists" test -x "$MOUNT_PATH/Duxo.app/Contents/MacOS/Duxo"
+            check "DMG renderer exists" test -f "$MOUNT_PATH/Duxo.app/Contents/Resources/ui/renderer.js"
+            check "DMG icon exists" test -f "$MOUNT_PATH/Duxo.app/Contents/Resources/Duxo.icns"
+            check "DMG Analyzer exists" test -x "$MOUNT_PATH/Duxo.app/Contents/Resources/duxo-runtime/duxo-analyzer"
+            check "DMG Adapter exists" test -x "$MOUNT_PATH/Duxo.app/Contents/Resources/duxo-runtime/duxo-adapter"
+            check "DMG codesign verification" /usr/bin/codesign --verify --deep --strict "$MOUNT_PATH/Duxo.app"
+            /usr/bin/hdiutil detach "$MOUNT_PATH" -quiet >/dev/null 2>&1 || fail=1
+            trap - EXIT
+          fi
+          exit "$fail"
       - name: Test distributed native DMG through LaunchServices
         shell: bash
         run: |
@@ -188,6 +201,7 @@ jobs:
           MOUNT_INFO="$(/usr/bin/hdiutil attach "$DMG" -nobrowse -noautoopen 2>"$RUNNER_TEMP/Duxo-dmg-attach.err")"
           MOUNT_PATH="$(printf '%s\n' "$MOUNT_INFO" | awk -F'\t' '/\/Volumes\// {print $NF; exit}')"
           if [ -z "$MOUNT_PATH" ]; then
+            cat "$RUNNER_TEMP/Duxo-dmg-attach.err" >&2 || true
             exit 1
           fi
           APP="$MOUNT_PATH/Duxo.app"
@@ -198,6 +212,11 @@ jobs:
             sleep 1
           done
           if [ "$READY" -ne 1 ]; then
+            echo "FAIL: distributed DMG app did not stay running." >&2
+            echo "--- LaunchServices output ---" >&2
+            cat "$LOG" >&2 || true
+            echo "--- Attach output ---" >&2
+            cat "$RUNNER_TEMP/Duxo-dmg-attach.err" >&2 || true
             /usr/bin/hdiutil detach "$MOUNT_PATH" -quiet >/dev/null 2>&1 || true
             exit 1
           fi
