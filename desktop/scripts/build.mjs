@@ -10,5 +10,4 @@ await mkdir(rendererOut, { recursive: true });
 await cp(join(rendererSource, 'index.html'), join(rendererOut, 'index.html'));
 await cp(join(rendererSource, 'styles.css'), join(rendererOut, 'styles.css'));
 await cp(join(rendererSource, 'plan.css'), join(rendererOut, 'plan.css'));
-await cp(join(rendererRoot = rendererSource, 'renderer.ts'), join(rendererOut, 'renderer.ts'));
 await access(join(rendererOut, 'renderer.js'));
