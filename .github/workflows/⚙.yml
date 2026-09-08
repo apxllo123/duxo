@@ -93,6 +93,20 @@ jobs:
               ;;
           esac
 
+      - name: Ensure Cargo.lock exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! -f Cargo.lock ]]; then
+            echo "Cargo.lock is absent from the repository; generating it for this validation run."
+            cargo generate-lockfile
+            echo "lockfile_bootstrapped=true" >> .ci-report/lockfile.txt
+          else
+            echo "lockfile_bootstrapped=false" >> .ci-report/lockfile.txt
+          fi
+          test -s Cargo.lock
+          sha256sum Cargo.lock 2>/dev/null || shasum -a 256 Cargo.lock
+
       - name: Validate workspace metadata
         run: |
           cargo metadata --locked --no-deps --format-version 1 > .ci-report/cargo-metadata.json
@@ -161,6 +175,16 @@ jobs:
           test -s .ci-report/analyzer-no-arg.stderr
           test -s .ci-report/adapter-empty.stderr
           echo "CLI negative-path contracts validated."
+
+      - name: Report repository lockfile state
+        shell: bash
+        run: |
+          set -euo pipefail
+          git status --short
+          if [[ -n "$(git status --short -- Cargo.lock)" ]]; then
+            echo "WARNING: Cargo.lock was generated during CI and is not committed to main."
+            echo "The build was validated with the generated lockfile, but future reproducibility requires committing Cargo.lock."
+          fi
 
       - name: Upload Rust CI diagnostics
         if: always()
