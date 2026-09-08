@@ -56,7 +56,8 @@ pub fn analyze_game(root: &Path) -> Result<GameManifest> {
 }
 
 fn sha256_file(path: &Path) -> Result<String> {
-    let mut file = File::open(path).with_context(|| format!("failed to open {}", path.display()))?;
+    let mut file =
+        File::open(path).with_context(|| format!("failed to open {}", path.display()))?;
     let mut hasher = Sha256::new();
     let mut buffer = [0_u8; 1024 * 1024];
     loop {
@@ -70,7 +71,8 @@ fn sha256_file(path: &Path) -> Result<String> {
 }
 
 fn detect_binary_format(path: &Path) -> Result<String> {
-    let mut file = File::open(path).with_context(|| format!("failed to open {}", path.display()))?;
+    let mut file =
+        File::open(path).with_context(|| format!("failed to open {}", path.display()))?;
     let mut header = [0_u8; 4];
     let read = file.read(&mut header)?;
     Ok(if read >= 2 && &header[..2] == b"MZ" {
@@ -81,7 +83,8 @@ fn detect_binary_format(path: &Path) -> Result<String> {
 }
 
 fn detect_pe_architecture(path: &Path) -> Result<Option<String>> {
-    let mut file = File::open(path).with_context(|| format!("failed to open {}", path.display()))?;
+    let mut file =
+        File::open(path).with_context(|| format!("failed to open {}", path.display()))?;
     let mut dos_header = [0_u8; 0x40];
     let read = file.read(&mut dos_header)?;
     if read < dos_header.len() || &dos_header[..2] != b"MZ" {
@@ -223,7 +226,11 @@ mod tests {
         let after = fs::read(&path).expect("read fixture after analysis");
         assert_eq!(before, after);
         assert!(signals.packers_or_protectors.contains(&"UPX".to_owned()));
-        assert!(signals.packers_or_protectors.contains(&"VMProtect".to_owned()));
+        assert!(
+            signals
+                .packers_or_protectors
+                .contains(&"VMProtect".to_owned())
+        );
         assert!(signals.anti_cheats.contains(&"Easy Anti-Cheat".to_owned()));
         fs::remove_file(path).expect("remove fixture");
     }
@@ -247,7 +254,10 @@ mod tests {
     #[test]
     fn ascii_marker_matching_is_case_insensitive() {
         assert!(contains_ascii_case_insensitive(b"vMpRoTeCt", b"vmprotect"));
-        assert!(!contains_ascii_case_insensitive(b"ordinary data", b"vmprotect"));
+        assert!(!contains_ascii_case_insensitive(
+            b"ordinary data",
+            b"vmprotect"
+        ));
     }
 
     #[test]
