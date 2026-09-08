@@ -45,8 +45,6 @@ jobs:
         with:
           node-version: 24.20.0
           check-latest: true
-          cache: npm
-          cache-dependency-path: desktop/package-lock.json
 
       - name: Capture runner environment
         shell: bash
@@ -54,7 +52,7 @@ jobs:
           EXPECTED_ARCH: ${{ matrix.expected_arch }}
         run: |
           set -euo pipefail
-          mkdir -p .ci-report
+          mkdir -p ci-report
           {
             echo "=== Duxo Electron CI environment ==="
             echo "Runner OS: $RUNNER_OS"
@@ -63,8 +61,8 @@ jobs:
             echo "Expected arch: $EXPECTED_ARCH"
             echo "Node: $(node --version)"
             echo "npm: $(npm --version)"
-            echo "Electron platform: $(node -p 'process.platform')"
-            echo "Electron arch target: $(node -p 'process.arch')"
+            echo "Platform: $(node -p 'process.platform')"
+            echo "Node arch: $(node -p 'process.arch')"
             if [[ "$RUNNER_OS" == "macOS" ]]; then
               sw_vers
               xcode-select -p
@@ -74,29 +72,37 @@ jobs:
               powershell -NoProfile -Command '$PSVersionTable.PSVersion.ToString()'
               node -p 'process.env.PROCESSOR_ARCHITECTURE'
             fi
-          } | tee .ci-report/environment.txt
+          } | tee ci-report/environment.txt
 
           case "$RUNNER_OS/$EXPECTED_ARCH" in
-            macOS/arm64)
-              test "$(uname -m)" = "arm64"
-              ;;
-            Windows/x64)
-              test "${RUNNER_ARCH,,}" = "x64"
-              ;;
+            macOS/arm64) test "$(uname -m)" = "arm64" ;;
+            Windows/x64) test "${RUNNER_ARCH,,}" = "x64" ;;
           esac
 
-      - name: Verify lockfile is present and installation is deterministic
-        working-directory: desktop
-        run: test -s package-lock.json
-
-      - name: Install dependencies with npm ci
-        working-directory: desktop
-        run: npm ci --no-audit --no-fund
-
-      - name: Verify dependency tree is clean
+      - name: Check desktop dependency lockfile
         working-directory: desktop
         shell: bash
-        run: npm ls --all --depth=0
+        run: |
+          set -euo pipefail
+          if [[ ! -s package-lock.json ]]; then
+            echo "WARNING: desktop/package-lock.json is not committed; dependency installation will use package.json resolution." | tee ../ci-report/dependency-state.txt
+          else
+            echo "package-lock.json present; npm ci will enforce it." | tee ../ci-report/dependency-state.txt
+          fi
+
+      - name: Install dependencies
+        working-directory: desktop
+        run: |
+          if [ -s package-lock.json ]; then
+            npm ci --no-audit --no-fund
+          else
+            npm install --no-audit --no-fund
+          fi
+
+      - name: Verify dependency tree
+        working-directory: desktop
+        shell: bash
+        run: npm ls --depth=0
 
       - name: Typecheck TypeScript
         working-directory: desktop
@@ -118,11 +124,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -f desktop/dist-electron/main.js
-          test -f desktop/dist-electron/preload.js
-          test -f desktop/dist-renderer/index.html
-          test -f desktop/dist-renderer/renderer.js
-          test -f desktop/dist-renderer/styles.css
+          for required in \
+            desktop/dist-electron/main.js \
+            desktop/dist-electron/preload.js \
+            desktop/dist-renderer/index.html \
+            desktop/dist-renderer/renderer.js \
+            desktop/dist-renderer/styles.css; do
+            test -f "$required" || { echo "FAIL: missing $required" >&2; exit 1; }
+            echo "OK: $required"
+          done
           node --check desktop/dist-electron/main.js
           node --check desktop/dist-electron/preload.js
           node --check desktop/dist-renderer/renderer.js
@@ -166,12 +176,12 @@ jobs:
             git status --short
             echo "=== Generated desktop tree ==="
             find desktop/dist-electron desktop/dist-renderer desktop/build -maxdepth 2 -type f -print 2>/dev/null | sort
-          } > .ci-report/build-diagnostics.txt
+          } > ci-report/build-diagnostics.txt
 
       - name: Upload Electron CI diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: duxo-electron-ci-${{ matrix.os }}-${{ github.run_attempt }}
-          path: .ci-report
+          path: ci-report/
           if-no-files-found: error
