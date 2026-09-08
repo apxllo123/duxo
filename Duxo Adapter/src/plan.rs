@@ -56,74 +56,25 @@ pub fn build_plan(profile: &GameProfile) -> AdaptationPlan {
     );
 
     if profile.graphics.direct3d9 {
-        add_translation_step(
-            &mut steps,
-            &mut modules,
-            "graphics-d3d9",
-            "Prepare Direct3D 9 → Metal",
-            "A D3D9 conversion executor is not registered yet, so Duxo will not claim this step is executable.",
-            "graphics.d3d9",
-        );
+        add_translation_step(&mut steps, &mut modules, "graphics-d3d9", "Prepare Direct3D 9 → Metal", "A D3D9 conversion executor is not registered yet, so Duxo will not claim this step is executable.", "graphics.d3d9");
     }
     if profile.graphics.direct3d10 {
-        add_translation_step(
-            &mut steps,
-            &mut modules,
-            "graphics-d3d10",
-            "Prepare Direct3D 10 → Metal",
-            "A D3D10 conversion executor is not registered yet, so Duxo will not claim this step is executable.",
-            "graphics.d3d10",
-        );
+        add_translation_step(&mut steps, &mut modules, "graphics-d3d10", "Prepare Direct3D 10 → Metal", "A D3D10 conversion executor is not registered yet, so Duxo will not claim this step is executable.", "graphics.d3d10");
     }
     if profile.graphics.direct3d11 {
-        add_translation_step(
-            &mut steps,
-            &mut modules,
-            "graphics-d3d11",
-            "Prepare Direct3D 11 → Metal",
-            "A D3D11 conversion executor is not registered yet, so Duxo will not claim this step is executable.",
-            "graphics.d3d11",
-        );
+        add_translation_step(&mut steps, &mut modules, "graphics-d3d11", "Prepare Direct3D 11 → Metal", "A D3D11 conversion executor is not registered yet, so Duxo will not claim this step is executable.", "graphics.d3d11");
     }
     if profile.graphics.direct3d12 {
-        add_translation_step(
-            &mut steps,
-            &mut modules,
-            "graphics-d3d12",
-            "Prepare Direct3D 12 → Metal",
-            "A D3D12 conversion executor is not registered yet, so Duxo will not claim this step is executable.",
-            "graphics.d3d12",
-        );
+        add_translation_step(&mut steps, &mut modules, "graphics-d3d12", "Prepare Direct3D 12 → Metal", "A D3D12 conversion executor is not registered yet, so Duxo will not claim this step is executable.", "graphics.d3d12");
     }
     if profile.graphics.dxgi {
-        add_translation_step(
-            &mut steps,
-            &mut modules,
-            "graphics-dxgi",
-            "Map DXGI requirements",
-            "A DXGI adaptation executor is not registered yet; this requirement remains blocked rather than being reported as completed.",
-            "graphics.dxgi",
-        );
+        add_translation_step(&mut steps, &mut modules, "graphics-dxgi", "Map DXGI requirements", "A DXGI adaptation executor is not registered yet; this requirement remains blocked rather than being reported as completed.", "graphics.dxgi");
     }
     if profile.graphics.vulkan {
-        add_translation_step(
-            &mut steps,
-            &mut modules,
-            "graphics-vulkan",
-            "Prepare Vulkan path",
-            "A Vulkan adaptation executor is not registered yet; Duxo only records the detected requirement.",
-            "graphics.vulkan",
-        );
+        add_translation_step(&mut steps, &mut modules, "graphics-vulkan", "Prepare Vulkan path", "A Vulkan adaptation executor is not registered yet; Duxo only records the detected requirement.", "graphics.vulkan");
     }
     if profile.graphics.opengl {
-        add_translation_step(
-            &mut steps,
-            &mut modules,
-            "graphics-opengl",
-            "Prepare OpenGL path",
-            "An OpenGL adaptation executor is not registered yet; Duxo only records the detected requirement.",
-            "graphics.opengl",
-        );
+        add_translation_step(&mut steps, &mut modules, "graphics-opengl", "Prepare OpenGL path", "An OpenGL adaptation executor is not registered yet; Duxo only records the detected requirement.", "graphics.opengl");
     }
 
     for api in &profile.windows_apis {
@@ -351,7 +302,7 @@ fn slug(value: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{build_plan, DependencyResolutionKind, StepStatus};
+    use super::{DependencyResolutionKind, StepStatus, build_plan};
     use duxo_analyzer::profile::{
         BinaryDependency, ExecutableProfile, GameProfile, GraphicsRequirements, ProtectionSummary,
     };
