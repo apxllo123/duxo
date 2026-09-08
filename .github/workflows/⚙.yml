@@ -66,7 +66,7 @@ jobs:
           EXPECTED_ARCH: ${{ matrix.expected_arch }}
         run: |
           set -euo pipefail
-          mkdir -p .ci-report
+          mkdir -p ci-report
           {
             echo "=== Duxo Rust CI environment ==="
             echo "Runner OS: $RUNNER_OS"
@@ -82,7 +82,7 @@ jobs:
             elif [[ "$RUNNER_OS" == "Windows" ]]; then
               powershell -NoProfile -Command '$PSVersionTable.PSVersion.ToString()'
             fi
-          } | tee .ci-report/environment.txt
+          } | tee ci-report/environment.txt
 
           case "$RUNNER_OS/$EXPECTED_ARCH" in
             macOS/arm64)
@@ -100,19 +100,19 @@ jobs:
           if [[ ! -f Cargo.lock ]]; then
             echo "Cargo.lock is absent from the repository; generating it for this validation run."
             cargo generate-lockfile
-            echo "lockfile_bootstrapped=true" >> .ci-report/lockfile.txt
+            echo "lockfile_bootstrapped=true" | tee ci-report/lockfile.txt
           else
-            echo "lockfile_bootstrapped=false" >> .ci-report/lockfile.txt
+            echo "lockfile_bootstrapped=false" | tee ci-report/lockfile.txt
           fi
           test -s Cargo.lock
           sha256sum Cargo.lock 2>/dev/null || shasum -a 256 Cargo.lock
 
       - name: Validate workspace metadata
         run: |
-          cargo metadata --locked --no-deps --format-version 1 > .ci-report/cargo-metadata.json
+          cargo metadata --locked --no-deps --format-version 1 > ci-report/cargo-metadata.json
           python3 - <<'PY'
           import json
-          with open('.ci-report/cargo-metadata.json', encoding='utf-8') as f:
+          with open('ci-report/cargo-metadata.json', encoding='utf-8') as f:
               data = json.load(f)
           names = sorted(pkg['name'] for pkg in data['packages'])
           required = {'duxo-analyzer', 'duxo-adapter'}
@@ -165,25 +165,25 @@ jobs:
             ADAPTER="target/release/duxo-adapter"
           fi
           set +e
-          "$ANALYZER" > .ci-report/analyzer-no-arg.stdout 2> .ci-report/analyzer-no-arg.stderr
+          "$ANALYZER" > ci-report/analyzer-no-arg.stdout 2> ci-report/analyzer-no-arg.stderr
           analyzer_code=$?
-          "$ADAPTER" > .ci-report/adapter-empty.stdout 2> .ci-report/adapter-empty.stderr
+          "$ADAPTER" > ci-report/adapter-empty.stdout 2> ci-report/adapter-empty.stderr
           adapter_code=$?
           set -e
           test "$analyzer_code" -ne 0
           test "$adapter_code" -ne 0
-          test -s .ci-report/analyzer-no-arg.stderr
-          test -s .ci-report/adapter-empty.stderr
+          test -s ci-report/analyzer-no-arg.stderr
+          test -s ci-report/adapter-empty.stderr
           echo "CLI negative-path contracts validated."
 
-      - name: Report repository lockfile state
+      - name: Record repository lockfile state
         shell: bash
         run: |
           set -euo pipefail
           git status --short
           if [[ -n "$(git status --short -- Cargo.lock)" ]]; then
-            echo "WARNING: Cargo.lock was generated during CI and is not committed to main."
-            echo "The build was validated with the generated lockfile, but future reproducibility requires committing Cargo.lock."
+            echo "WARNING: Cargo.lock was generated during CI and is not committed to main." | tee -a ci-report/lockfile.txt
+            echo "The build was validated with the generated lockfile, but reproducibility requires committing Cargo.lock." | tee -a ci-report/lockfile.txt
           fi
 
       - name: Upload Rust CI diagnostics
@@ -191,5 +191,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: duxo-rust-ci-${{ matrix.os }}-${{ github.run_attempt }}
-          path: .ci-report
+          path: ci-report/
           if-no-files-found: error
+          include-hidden-files: false
