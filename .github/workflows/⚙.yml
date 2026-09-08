@@ -85,12 +85,8 @@ jobs:
           } | tee ci-report/environment.txt
 
           case "$RUNNER_OS/$EXPECTED_ARCH" in
-            macOS/arm64)
-              test "$(uname -m)" = "arm64"
-              ;;
-            Windows/x64|Linux/x64)
-              test "${RUNNER_ARCH,,}" = "x64"
-              ;;
+            macOS/arm64) test "$(uname -m)" = "arm64" ;;
+            Windows/x64|Linux/x64) test "${RUNNER_ARCH,,}" = "x64" ;;
           esac
 
       - name: Ensure Cargo.lock exists
@@ -105,22 +101,24 @@ jobs:
             echo "lockfile_bootstrapped=false" | tee ci-report/lockfile.txt
           fi
           test -s Cargo.lock
-          sha256sum Cargo.lock 2>/dev/null || shasum -a 256 Cargo.lock
+          if command -v shasum >/dev/null 2>&1; then
+            shasum -a 256 Cargo.lock | tee ci-report/cargo-lock.sha256
+          elif command -v sha256sum >/dev/null 2>&1; then
+            sha256sum Cargo.lock | tee ci-report/cargo-lock.sha256
+          fi
 
       - name: Validate workspace metadata
+        shell: bash
         run: |
+          set -euo pipefail
           cargo metadata --locked --no-deps --format-version 1 > ci-report/cargo-metadata.json
-          python3 - <<'PY'
-          import json
-          with open('ci-report/cargo-metadata.json', encoding='utf-8') as f:
-              data = json.load(f)
-          names = sorted(pkg['name'] for pkg in data['packages'])
-          required = {'duxo-analyzer', 'duxo-adapter'}
-          missing = required - set(names)
-          if missing:
-              raise SystemExit(f"Missing workspace packages: {sorted(missing)}")
-          print('Workspace packages:', names)
-          PY
+          for package in 'duxo-analyzer' 'duxo-adapter'; do
+            grep -Fq "\"name\":\"$package\"" ci-report/cargo-metadata.json || {
+              echo "FAIL: workspace package $package is missing from cargo metadata." >&2
+              exit 1
+            }
+          done
+          echo "Workspace package metadata validated."
 
       - name: Check formatting
         run: cargo fmt --all -- --check
@@ -145,13 +143,17 @@ jobs:
         run: |
           set -euo pipefail
           if [[ "$RUNNER_OS" == "Windows" ]]; then
-            test -f "target/release/duxo-analyzer.exe"
-            test -f "target/release/duxo-adapter.exe"
+            ANALYZER="target/release/duxo-analyzer.exe"
+            ADAPTER="target/release/duxo-adapter.exe"
+            test -f "$ANALYZER" || { echo "FAIL: $ANALYZER missing" >&2; exit 1; }
+            test -f "$ADAPTER" || { echo "FAIL: $ADAPTER missing" >&2; exit 1; }
           else
-            test -x "target/release/duxo-analyzer"
-            test -x "target/release/duxo-adapter"
+            ANALYZER="target/release/duxo-analyzer"
+            ADAPTER="target/release/duxo-adapter"
+            test -x "$ANALYZER" || { echo "FAIL: $ANALYZER missing or not executable" >&2; exit 1; }
+            test -x "$ADAPTER" || { echo "FAIL: $ADAPTER missing or not executable" >&2; exit 1; }
           fi
-          ls -lh target/release/duxo-analyzer* target/release/duxo-adapter*
+          ls -lh "$ANALYZER" "$ADAPTER"
 
       - name: Exercise Analyzer and Adapter CLI contract
         shell: bash
